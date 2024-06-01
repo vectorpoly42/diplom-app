@@ -36,7 +36,7 @@ class DetailModel extends Model {
         float $s1i = 0.5,     // подача режущего инструмента
         float $v1i = 50,     // скорость резания
         float $tv1i = 3     // длительность вспомогательных операций токарной обработки
-    ): float {
+    ) {
         $lenght = count($this->damage) * ($this->lenghtDetail(array_sum($this->damage), $yi)); // длина обрабатываемой поверхности детали с учетом врезания и пробега
         $this -> calculateNewDiameter($this->initialDiameter, $this ->damage); // диаметр повреждений
         $n1i = 318 * ($v1i / $this->initialDiameter); // число оборотов деталей в минуту
@@ -44,8 +44,11 @@ class DetailModel extends Model {
         // Расчет длительности основной токарной обработки
         $to1i = (($lenght * $ki) / ($n1i * $s1i));
 
+        $mainTime = $to1i + $tv1i;
+
+        //в матрицу кладем $mainTime для прибора 1 типа
+
         // Возврат суммы основной и вспомогательной длительности обработки
-        return $to1i + $tv1i;
     }
 
     // длина обрабатываемой поверхности детали с учетом врезания и пробега

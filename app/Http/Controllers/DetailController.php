@@ -6,22 +6,44 @@ use App\Models\DetailModel;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Request;
 
-
 class DetailController extends Controller
 {
     public function index(Request $request)
     {
         $wear = json_decode($request->input('wear'), true);
+
         $detail = DetailModel::create([
             'initial_diameter' => $request->input('initialDiameter'),
             'wear' => $wear,
             'type' => $request->input('type'),
         ]);
 
-        $detail->doDetail();
+        $detailWorks = [];
 
-        //вернуть вью с вводом данных - вводим данные(для полей - см таблицу создания детали),
-        //сохраняем их в БД, после считаем данные
+        foreach ($details as $key => $detail) {
+            $detailWorks[$key]['turning'] = $detail->turningTime();
+            $detailWorks[$key]['type'] = $detail->type;
+
+            if ($detail->type == 1 || $detail->type == 2) {
+                $detailWorks[$key]['electricityWelding'] = $detail->electricityWelding();
+            } else {
+                $detailWorks[$key]['vibroWelding'] = $detail->vibroWelding();
+            }
+
+            $detailWorks[$key]['grinding'] = $detail->grinding();
+        }
+
+        /** @var array<workType, instrument> */
+        $result = [];
+
+        foreach ($detailWorks as $detailId => $values) {
+            $result[$detail->type]['turning'] += $values['turning'] ?? 0;
+            $result[$detail->type]['electricityWelding'] += $values['electricityWelding'] ?? 0;
+            $result[$detail->type]['vibroWelding'] += $values['vibroWelding'] ?? 0;
+            $result[$detail->type]['grinding'] += $values['grinding'] ?? 0;
+        }
+
+        return $result;
     }
 
     // mark: что нужно вернуть?
@@ -36,7 +58,7 @@ class DetailController extends Controller
     // mark: матрицы
 
     // каждая деталь проходит 4 стадии обработки (4 прибора)
-    // нужно вернуть сумму по каждому типу на одном приборе
+    // нужно вернуть время по каждому типу на одном приборе
     // сформировать матрицу по приборам и типам (пример):
     //    п1     п2    п3  п4
     // т1  1     2     3   4
