@@ -10,19 +10,45 @@ class DetailController extends Controller
 {
     public function index(Request $request)
     {
-        $wear = json_decode($request->input('wear'), true);
+        $details = [];
 
-        $detail = DetailModel::create([
-            'initial_diameter' => $request->input('initialDiameter'),
-            'wear' => $wear,
-            'type' => $request->input('type'),
-        ]);
+//        $detailsData = json_decode($request->input('details'), true);
+
+        $detailsData = [
+            [
+                "initialDiameter" => 10.5,
+                "wear" => [
+                    "depth" => 0.1,
+                    "width" => 0.05,
+                ],
+                "type" => 1,
+            ],
+            [
+                "initialDiameter" => 15.0,
+                "wear" => [
+                    "depth" => 0.2,
+                    "width" => 0.1,
+                ],
+                "type" => 2,
+            ]
+        ];
+
+        foreach ($detailsData as $detailData) {
+            $detail = DetailModel::create([
+                'initial_diameter' => $detailData['initialDiameter'],
+                'wear' => $detailData['wear'],
+                'type' => $detailData['type'],
+            ]);
+
+            $details[] = $detail;
+        }
 
         $detailWorks = [];
 
         foreach ($details as $key => $detail) {
-            $detailWorks[$key]['turning'] = $detail->turningTime();
             $detailWorks[$key]['type'] = $detail->type;
+
+            $detailWorks[$key]['turning'] = $detail->turningTime();
 
             if ($detail->type == 1 || $detail->type == 2) {
                 $detailWorks[$key]['electricityWelding'] = $detail->electricityWelding();
@@ -33,7 +59,6 @@ class DetailController extends Controller
             $detailWorks[$key]['grinding'] = $detail->grinding();
         }
 
-        /** @var array<workType, instrument> */
         $result = [];
 
         foreach ($detailWorks as $detailId => $values) {
