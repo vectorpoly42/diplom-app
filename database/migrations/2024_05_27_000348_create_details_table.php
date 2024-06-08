@@ -12,9 +12,7 @@ class CreateDetailsTable extends Migration
             $table->integer('type')->unsigned(); // тип детали
             $table->string('name'); // название детали
             $table->float('diameter'); // начальный диаметр
-            $table->json('wear')->default(0.0); // износ детали
-            $table->float('initial_wear_diameter'); // начальный диаметр с учетом износа
-            $table->float('worn_section_length')->default(0.0); // длина изношенных участков
+            $table->json('wear')->default(json_encode([])); // износ детали
             $table->timestamps();
         });
     }

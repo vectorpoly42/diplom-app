@@ -2,73 +2,63 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DetailModel;
+use App\Models\Detail;
+use App\Models\Operation;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Http\Request;
 
 class DetailController extends Controller
 {
-    public function index(Request $request)
+    public function create()
     {
-        $details = [];
+        return view('addDetail');
+    }
 
-//        $detailsData = json_decode($request->input('details'), true);
+    public function store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'initialDiameter' => 'required|numeric',
+            'wearCount' => 'required|integer|min:1',
+            'wear' => 'required|array|min:1',
+            'wear.*' => 'numeric',
+            'type' => 'required|integer',
+        ]);
 
-        $detailsData = [
-            [
-                "initialDiameter" => 10.5,
-                "wear" => [
-                    "depth" => 0.1,
-                    "width" => 0.05,
-                ],
-                "type" => 1,
-            ],
-            [
-                "initialDiameter" => 15.0,
-                "wear" => [
-                    "depth" => 0.2,
-                    "width" => 0.1,
-                ],
-                "type" => 2,
-            ]
+        $wear = $validatedData['wear'];
+
+        if (!is_array($wear)) {
+            $wear = json_decode($wear, true);
+        }
+
+        $detail = Detail::create([
+            'name' => $validatedData['name'],
+            'diameter' => $validatedData['initialDiameter'],
+            'wear' => $wear,
+            'type' => $validatedData['type'],
+        ]);
+
+        $operations['turning'] = $detail->turningTime();
+
+        if ($detail->type == 1 || $detail->type == 2) {
+            $operations['electricityWelding'] = $detail->electricityWelding();
+        } else {
+            $operations['vibroWelding'] = $detail->vibroWelding();
+        }
+        $operations = [
+            'secondTurning' => $detail->secondTurningTime(),
+            'grinding' => $detail->grinding(),
         ];
 
-        foreach ($detailsData as $detailData) {
-            $detail = DetailModel::create([
-                'initial_diameter' => $detailData['initialDiameter'],
-                'wear' => $detailData['wear'],
-                'type' => $detailData['type'],
+        foreach ($operations as $type => $time) {
+            Operation::create([
+                'detail_id' => $detail->id,
+                'type' => $type,
+                'time' => $time,
             ]);
-
-            $details[] = $detail;
         }
 
-        $detailWorks = [];
-
-        foreach ($details as $key => $detail) {
-            $detailWorks[$key]['type'] = $detail->type;
-
-            $detailWorks[$key]['turning'] = $detail->turningTime();
-
-            if ($detail->type == 1 || $detail->type == 2) {
-                $detailWorks[$key]['electricityWelding'] = $detail->electricityWelding();
-            } else {
-                $detailWorks[$key]['vibroWelding'] = $detail->vibroWelding();
-            }
-
-            $detailWorks[$key]['grinding'] = $detail->grinding();
-        }
-
-        $result = [];
-
-        foreach ($detailWorks as $detailId => $values) {
-            $result[$detail->type]['turning'] += $values['turning'] ?? 0;
-            $result[$detail->type]['electricityWelding'] += $values['electricityWelding'] ?? 0;
-            $result[$detail->type]['vibroWelding'] += $values['vibroWelding'] ?? 0;
-            $result[$detail->type]['grinding'] += $values['grinding'] ?? 0;
-        }
-
-        return $result;
+        return redirect()->route('detail.create')->with('success', 'Detail created successfully with operations calculated.');
     }
 
     // mark: что нужно вернуть?

@@ -7,8 +7,16 @@ use Illuminate\Support\Facades\Request;
 
 class DetailsController
 {
-    public function index(Request $request)
+    public function index()
     {
+        $details = Detail::all();
+
+        return view('details', ['details' => $details]);
+    }
+
+    public function temp()
+    {
+
         $details = [];
 
 //        $detailsData = json_decode($request->input('details'), true);
@@ -129,6 +137,7 @@ class DetailsController
         }
 
         return response()->json(['matrix' => $matrix, 'taskTypesMatrix' => $taskTypesMatrixRes]);
+
     }
 
     //вернуть общую сумму заданий (деталей)
