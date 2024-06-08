@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-<nav>
-    <ul>
-        //оставить заявку - выполнить расчеты для одного вида детали
-        //посмотреть все заявки - просмотреть прошлые расчеты
-        //посмотреть все детали - просмотреть список + переход на все детали
-        //вывести отчет по времени всех деталей
-    </ul>
-</nav>
+<html>
+<head>
+    <title>Submit Request</title>
+</head>
+<body>
+<h1>Оформить заявку</h1>
+
+<form action="{{ route('order.store') }}" method="POST">
+    @csrf
+    <label for="detail_id">Выберите детали (от двух) </label>
+    <select name="detail_id" id="detail_id">
+        @foreach ($details as $detail)
+            <option value="{{ $detail->id }}">{{ $detail->name }}</option>
+        @endforeach
+    </select>
+    <button type="submit">Отправить заявку</button>
+</form>
+</body>
 </html>
