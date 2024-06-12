@@ -13,9 +13,9 @@ class DetailController extends Controller
 {
     public function allDetails()
     {
-        $details = Detail::all();
-
-        return view('details', compact('details'));
+        $details = Detail::all()->toArray();
+        $availableTypes = Detail::select('type')->distinct()->pluck('type')->toArray();
+        return view('details', compact('details', 'availableTypes' ));
 
     }
 

@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Detail;
+use App\Models\ExcelData;
 use App\Models\Operation;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class OrderController extends Controller
 {
@@ -109,6 +113,8 @@ class OrderController extends Controller
         foreach ($types as $index => $type) {
             if ($type == $detailType) {
                 $typeRow[$index] = 1;
+            } else {
+                $typeRow[$index] = 0;
             }
         }
 
@@ -137,5 +143,101 @@ class OrderController extends Controller
 
         // Возвращаем случайное целое число в заданном диапазоне
         return mt_rand($lowerBound, $upperBound);
+    }
+
+    public function download(Request $request)
+    {
+        $id = $request->route('id');
+        $order = Order::with('details')->findOrFail($id);
+
+        $spreadsheet = new Spreadsheet();
+
+        // Добавляем лист в книгу
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Заполняем данные в лист
+        $sheet->setCellValue('A1', 'ID');
+        $sheet->setCellValue('B1', 'Number of Details');
+        $sheet->setCellValue('C1', 'Number of Devices');
+        $sheet->setCellValue('D1', 'J Parameter');
+        $sheet->setCellValue('E1', 'T L W');
+        $sheet->setCellValue('F1', 'A W I');
+        $sheet->setCellValue('G1', 'P L W');
+
+        $row = 2;
+        $sheet->setCellValue('A'. $row, $order->id);
+        $sheet->setCellValue('B'. $row, $order->number_of_details);
+        $sheet->setCellValue('C'. $row, $order->number_of_devices);
+        $sheet->setCellValue('D'. $row, $order->J_parameter);
+        $sheet->setCellValue('E'. $row, json_encode($order->T_l_w));
+        $sheet->setCellValue('F'. $row, json_encode($order->A_w_i));
+        $sheet->setCellValue('G'. $row, $order->P_l_w?? '');
+
+
+        // Сохраняем файл в памяти
+        // Сохраняем файл в памяти и отправляем на скачивание
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'order_'. $order->id. '.xlsx';
+
+        // Буферизация вывода
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_contents();
+        ob_end_clean();
+
+        return response($content)
+            ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->header('Content-Disposition', 'attachment; filename="'. $fileName . '"')
+            ->header('Cache-Control', 'max-age=0');
+    }
+
+    public function showUploadForm()
+    {
+        return view('upload');
+    }
+
+    public function showData($id)
+    {
+        $excelData = ExcelData::findOrFail($id);
+        return view('showData', compact('excelData'));
+    }
+
+    public function uploadAndProcessFile(Request $request)
+    {
+        // Проверка наличия файла в запросе
+        if (!$request->hasFile('file')) {
+            return response()->json(['error' => 'No file uploaded'], 400);
+        }
+
+        // Получение файла из запроса
+        $file = $request->file('file');
+
+        // Загружаем Excel файл
+        $spreadsheet = IOFactory::load($file->getRealPath());
+
+        // Считываем все листы и сохраняем данные в базу данных
+        foreach ($spreadsheet->getSheetNames() as $sheetName) {
+            $sheet = $spreadsheet->getSheetByName($sheetName);
+            $sheetData = $sheet->toArray();
+
+            ExcelData::create([
+                'sheet_name' => $sheetName,
+                'data' => $sheetData, // Laravel автоматически преобразует массив в JSON для сохранения
+            ]);
+        }
+
+        return response()->json(['message' => 'File uploaded and processed successfully'], 200);
+    }
+
+    public function listData()
+    {
+        $excelData = ExcelData::all();
+        return view('list', compact('excelData'));
+    }
+
+    public function showinfoData($id)
+    {
+        $excelData = ExcelData::findOrFail($id);
+        return view('showData', compact('excelData'));
     }
 }
