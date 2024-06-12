@@ -11,16 +11,21 @@ class Detail extends Model {
     protected $table = 'details';
 
     protected $fillable = [
-        'type', 'name', 'diameter', 'wear',
+        'type', 'name', 'diameter', 'wear_areas', 'wear',
     ];
 
     protected $casts = [
-        'wear' => 'array',
+        'wear_areas' => 'array',
     ];
 
     public function operations()
     {
         return $this->hasMany(Operation::class, 'detail_id');
+    }
+
+    public function technologicalProcess()
+    {
+        return $this->hasOne(TechnologicalProcess::class);
     }
 
     /**
@@ -32,9 +37,9 @@ class Detail extends Model {
         float $s1i = 0.5, // Подача режущего инструмента
         float $v1i = 50,  // Скорость резания
         float $tv1i = 3   // Длительность вспомогательных операций токарной обработки
-    ): float {
-        $length = count($this->wear) * ($this->lengthDetail(array_sum($this->wear), $yi)); // Длина обрабатываемой поверхности детали с учетом врезания и пробега
-        $this->calculateNewDiameter($this->diameter, $this->wear); // Диаметр повреждений
+    ): array {
+        $length = count($this->wear_areas) * ($this->lengthDetail(array_sum($this->wear_areas), $yi)); // Длина обрабатываемой поверхности детали с учетом врезания и пробега
+        $this->calculateNewDiameter($this->diameter, $this->wear_areas); // Диаметр повреждений
 
         $n1i = 318 * ($v1i / $this->diameter); // Число оборотов деталей в минуту
 
@@ -42,7 +47,10 @@ class Detail extends Model {
         $to1i = (($length * $ki) / ($n1i * $s1i));
 
         // Возврат суммы основной и вспомогательной длительности обработки
-        return ceil($to1i + $tv1i);
+        return [
+            'main_time' => ceil($to1i + $tv1i),
+            'auxiliary_time' => ceil($tv1i),
+        ];
     }
 
     /**
@@ -63,8 +71,17 @@ class Detail extends Model {
         float $initialDiameter, // Начальный диаметр
         array $wears // Массив повреждений
     ) {
-        $totalWear = array_sum($wears); // Суммарный износ
-        $this->damageDiameter = $initialDiameter - $totalWear; // Диаметр повреждений
+        $totalWear = 0;
+
+        // Вычисляем средний износ на каждом из участков
+        foreach ($wears as $segmentLength) {
+            // Рассчитываем средний износ для текущего участка
+            $wearPerSegment = ($initialDiameter - ($initialDiameter - $segmentLength)) / $initialDiameter;
+            // Добавляем его к общему износу
+            $totalWear += $wearPerSegment;
+        }
+
+        return $totalWear;
     }
 
     /**
@@ -72,22 +89,34 @@ class Detail extends Model {
      */
     public function electricityWelding(
         float $k2i = 1 // Количество проходов при наплавке
-    ): float {
+    ): array {
         $density = 7.81; // Плотность проволки
+//        dd($density);
         $lengthDetail = $this->li; // Длина обрабатываемой поверхности детали с учетом врезания и пробега
+//        dd($lengthDetail);
         $dpri = ($this->diameter) - ($this->damageDiameter); // Диаметр проволки (начальный диаметр - диаметр детали после обработки)
+//        dd($dpri);
         $isv2i = (40 * pow($this->diameter, 1 / 3)); // Сварочный ток (А)
+//        dd($isv2i);
         $k2ni = (2.3 + 0.065 * ($isv2i / $dpri)); // Коэффициент наплавки
-        $v2ni = ((4 * $k2ni * $isv2i) / pi() * pow($this->diameter, 2) * $density); // Скорость наплавки
-        $n2i = ((1000 * $v2ni) / (60 * pi() * $this->diameter)); // Частота вращения детали
+//        dd($k2ni);
+        $v2ei = (($k2ni * $isv2i) / (pi() * pow($this->diameter, 2)) * $density); // Скорость наплавки
+//        dd($v2ei);
+        $n2i = ((1000 * $v2ei) / (60 * pi() * $this->diameter)); // Частота вращения детали
+//        dd($n2i);
         $s2i = $this->stepWelding($dpri, 2, 2.5); // Шаг наплавки детали
+
 
         // Основное время
         $to2i = (($k2i * $lengthDetail) / ($n2i * $s2i));
         // Вспомогательное время
         $tv2i = (($to2i * 15) / 100);
 
-        return ceil($to2i + $tv2i);
+        return [
+            'main_time' => ceil($to2i + $tv2i),
+            'auxiliary_time' => ceil($tv2i),
+        ];
+
     }
 
     /**
@@ -104,7 +133,7 @@ class Detail extends Model {
     public function vibroWelding(
         float $k2i = 2, // Количество проходов при наплавке
         float $h2vi = 3 // Толщина наплавляемого слоя
-    ): float {
+    ): array {
         $nu = 0.8 / 0.9; // Коэффициент перехода
         $alpha = 0.7 / 0.85; // Коэффициент отклонения толщины
         $dpri = $this->diameter - $this->damageDiameter; // Диаметр проволки
@@ -122,7 +151,10 @@ class Detail extends Model {
         // Вспомогательное время
         $tv2i = (($to2i * 15) / 100);
 
-        return ceil($to2i + $tv2i);
+        return [
+            'main_time' => ceil($to2i + $tv2i),
+            'auxiliary_time' => $tv2i
+            ];
     }
 
     /**
@@ -159,16 +191,19 @@ class Detail extends Model {
         float $s1i = 0.5, // Подача режущего инструмента
         float $v1i = 50,  // Скорость резания
         float $tv1i = 3   // Длительность вспомогательных операций токарной обработки
-    ): float {
-        $lengthDetail = count($this->wear) * ($this->lengthDetail(($this->diameter / 2), $yi)); // Длина обрабатываемой поверхности детали с учетом врезания и пробега
-        $this->calculateNewDiameter($this->diameter, $this->wear); // Диаметр повреждений
+    ): array {
+        $lengthDetail = count($this->wear_areas) * ($this->lengthDetail(($this->diameter / 2), $yi)); // Длина обрабатываемой поверхности детали с учетом врезания и пробега
+        $this->calculateNewDiameter($this->diameter, $this->wear_areas); // Диаметр повреждений
         $n1i = 318 * ($v1i / $this->diameter); // Число оборотов деталей в минуту
 
         // Расчет длительности основной токарной обработки
         $to1i = (($lengthDetail * $ki) / ($n1i * $s1i));
 
         // Возврат суммы основной и вспомогательной длительности обработки
-        return ceil($to1i + $tv1i);
+        return [
+            'main_time' => ceil($to1i + $tv1i),
+            'auxiliary_time' => ceil($tv1i),
+        ];
     }
 
     /**
@@ -176,18 +211,21 @@ class Detail extends Model {
      */
     public function grinding(
         float $snp4i = 0.4 // Продольная подача инструментов
-    ): float {
+    ): array {
         $lengthDetail = $this->li; // Длина детали
         $ki4 = rand(4, 10); // Количество проходов
-        $v4i = mt_rand(40, 60) / 100; // Скорость шлифования деталей
+        $v4i = rand(400, 600) / 100; // Скорость шлифования деталей
         $n4i = 318 * ($v4i / $this->diameter);
-        $k = mt_rand(1.2 * 100, 1.7 * 100) / 100;
+        $k = rand(12, 17) / 100; // Исправлено на mt_rand()
 
         // Вспомогательное время
-        $tv4i = rand(2.7 * 100, 3.4 * 100) / 100;
+        $tv4i = rand(270, 340) / 100; // Исправлено на mt_rand()
         // Основное время
         $to4i = (($lengthDetail * $ki4) / ($n4i * $snp4i)) * $k;
 
-        return ceil($to4i + $tv4i);
+        return [
+            'main_time' => ceil($to4i + $tv4i),
+            'auxiliary_time' => ceil($tv4i)
+        ];
     }
 }

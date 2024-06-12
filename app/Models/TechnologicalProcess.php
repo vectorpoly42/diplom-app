@@ -5,18 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Operation extends Model
+class TechnologicalProcess extends Model
 {
     use HasFactory;
 
-    protected $table = 'operations';
+    protected $table = 'technological_processes';
 
     protected $fillable = [
-        'detail_id', 'type', 'main_time', 'auxiliary_time'
+        'detail_id',
+        'operations',
     ];
 
     public function detail()
     {
-        return $this->belongsTo(Detail::class, 'detail_id');
+        return $this->belongsTo(Detail::class);
     }
 }
